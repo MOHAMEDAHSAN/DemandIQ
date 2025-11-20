@@ -42,5 +42,7 @@ export interface ForecastDataPoint {
   forecast?: number;
 }
 
-export type DashboardState = "idle" | "training" | "trained" | "forecasting" | "results";
+export type DashboardState = "idle" | "loading" | "training" | "trained" | "forecasting" | "results";
 export type ScenarioType = "baseline" | "discount" | "price_cut" | "holiday";
+// src/types/inventory.ts
+// Add "loading" to the union type

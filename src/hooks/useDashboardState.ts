@@ -1,7 +1,10 @@
 import { useState, useCallback } from 'react';
 import { DashboardState, DataSummary, ProductMetrics, InventoryRecord, ScenarioType } from '@/types/inventory';
+// IMPORANT: Import the api service we defined
+import { api } from '@/services/api'; 
 
 export const useDashboardState = () => {
+  // Ensure "loading" is added to your DashboardState type definition (see Step 2 below)
   const [state, setState] = useState<DashboardState>("idle");
   const [data, setData] = useState<InventoryRecord[]>([]);
   const [dataSummary, setDataSummary] = useState<DataSummary | null>(null);
@@ -11,75 +14,77 @@ export const useDashboardState = () => {
   const [forecastHorizon, setForecastHorizon] = useState(20);
   const [selectedScenario, setSelectedScenario] = useState<ScenarioType>("baseline");
 
-  const loadData = useCallback((records: InventoryRecord[]) => {
-    setData(records);
-    
-    const uniqueProducts = new Set(records.map(r => r.Product_ID)).size;
-    const dates = records.map(r => new Date(r.Date));
-    const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
-    const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
-    
-    setDataSummary({
-      totalRecords: records.length,
-      uniqueProducts,
-      dateRange: {
-        min: minDate.toISOString().split('T')[0],
-        max: maxDate.toISOString().split('T')[0]
+  const loadData = useCallback(async (file: File) => {
+    setState("loading"); // This requires updating types/inventory.ts
+    try {
+      // 1. Upload to server
+      const records = await api.uploadData(file);
+      setData(records);
+      
+      // 2. Calculate summary for the UI (Client-side calculation)
+      // We keep this here so the UI updates immediately after upload
+      if (records.length > 0) {
+        const uniqueProducts = new Set(records.map(r => r.Product_ID)).size;
+        const dates = records.map(r => new Date(r.Date));
+        const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
+        const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
+
+        setDataSummary({
+          totalRecords: records.length,
+          uniqueProducts,
+          dateRange: {
+            min: minDate.toISOString().split('T')[0],
+            max: maxDate.toISOString().split('T')[0]
+          }
+        });
       }
-    });
-    
-    setState("idle");
+      
+      setState("idle");
+    } catch (error) {
+      console.error("Upload failed", error);
+      setTrainingLogs(prev => [...prev, "Error: File upload failed"]);
+      setState("idle");
+    }
   }, []);
 
-  const trainModels = useCallback(() => {
+  const trainModels = useCallback(async () => {
     setState("training");
-    setTrainingLogs([]);
+    setTrainingLogs(["Starting training on server..."]);
     
-    // Simulate training process
-    const products = Array.from(new Set(data.map(r => r.Product_ID)));
-    let logIndex = 0;
-    
-    const interval = setInterval(() => {
-      if (logIndex < products.length) {
-        const product = products[logIndex];
-        const guardrailTriggered = Math.random() > 0.85;
-        
-        setTrainingLogs(prev => [
-          ...prev,
-          `[${new Date().toLocaleTimeString()}] Training ${product}...`,
-          guardrailTriggered ? `[WARN] Guardrail triggered: Price elasticity illogical, removed from model` : `[OK] Model converged successfully`
-        ]);
-        
-        logIndex++;
-      } else {
-        clearInterval(interval);
-        
-        // Generate metrics for all products
-        const metrics: ProductMetrics[] = products.map(pid => ({
-          product_id: pid,
-          success_rate: 0.95 + Math.random() * 0.05,
-          wmape: 0.05 + Math.random() * 0.1,
-          guardrail_triggered: Math.random() > 0.85,
-          drivers: ["Price Sensitive", "Seasonal"].filter(() => Math.random() > 0.5),
-          recommendation: Math.random() > 0.5 ? "High Potential: Run aggressive promotion" : "Stable: Maintain current strategy",
-          predicted_demand: Math.floor(100 + Math.random() * 500),
-          confidence: 0.85 + Math.random() * 0.1
-        }));
-        
-        setProductMetrics(metrics);
-        setState("trained");
-        setSelectedProduct(products[0]);
+    try {
+      // Call the real backend
+      const metrics = await api.trainModel(data);
+      
+      setProductMetrics(metrics);
+      setTrainingLogs(prev => [...prev, "Training completed successfully."]);
+      setState("trained");
+      
+      if (metrics.length > 0) {
+        setSelectedProduct(metrics[0].product_id);
       }
-    }, 300);
+    } catch (error) {
+      console.error("Training error", error);
+      setTrainingLogs(prev => [...prev, "Error: Training failed."]);
+      setState("idle");
+    }
   }, [data]);
 
-  const generateForecast = useCallback(() => {
+  const generateForecast = useCallback(async () => {
     setState("forecasting");
-    
-    setTimeout(() => {
+    try {
+      // Fetch real forecast data
+      const results = await api.getForecast(forecastHorizon, selectedScenario);
+      
+      // Note: You need to handle 'results' here. 
+      // Either store it in a new state variable or merge it into 'data' if the structure matches.
+      console.log("Forecast results:", results);
+      
       setState("results");
-    }, 1500);
-  }, []);
+    } catch (e) {
+      console.error("Forecast failed", e);
+      setState("idle"); // Revert to idle on error
+    }
+  }, [forecastHorizon, selectedScenario]);
 
   return {
     state,
