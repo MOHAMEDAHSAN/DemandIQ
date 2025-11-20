@@ -1,100 +1,116 @@
-import { Download } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ProductMetrics } from '@/types/inventory';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { AlertTriangle, TrendingUp, CheckCircle2 } from "lucide-react";
+import { ProductMetrics } from "@/types/inventory";
 
 interface ActionableTablesProps {
   metrics: ProductMetrics[];
 }
 
 export const ActionableTables = ({ metrics }: ActionableTablesProps) => {
-  if (metrics.length === 0) return null;
-
-  const topPerformers = [...metrics]
-    .sort((a, b) => b.predicted_demand - a.predicted_demand)
-    .slice(0, 5);
-
-  const bottomPerformers = [...metrics]
-    .sort((a, b) => a.predicted_demand - b.predicted_demand)
-    .slice(0, 5);
-
-  const handleExport = () => {
-    const csvContent = [
-      ['Product_ID', 'Predicted_Demand', 'Confidence', 'WMAPE', 'Recommendation'].join(','),
-      ...metrics.map(m => [
-        m.product_id,
-        m.predicted_demand,
-        (m.confidence * 100).toFixed(1) + '%',
-        (m.wmape * 100).toFixed(2) + '%',
-        `"${m.recommendation}"`
-      ].join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'forecast_results.csv';
-    a.click();
-    window.URL.revokeObjectURL(url);
-  };
+  const sortedMetrics = [...metrics].sort((a, b) => b.predicted_demand - a.predicted_demand);
+  const lowConfidence = sortedMetrics.filter(m => m.confidence < 0.7);
+  const highImpact = sortedMetrics.filter(m => m.predicted_demand > 1000);
 
   return (
-    <div className="grid grid-cols-2 gap-6">
-      <Card className="p-6 border-border shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Top Performers</h2>
-          <Button variant="outline" size="sm" onClick={handleExport} className="gap-2">
-            <Download className="h-4 w-4" />
-            Export CSV
-          </Button>
+    <div className="space-y-8">
+      {/* Low Confidence Table */}
+      {lowConfidence.length > 0 && (
+        <div className="space-y-3 px-6 pt-6">
+          <div className="flex items-center gap-2 text-amber-600">
+             <AlertTriangle className="h-5 w-5" />
+             <h4 className="font-medium">Needs Attention (Low Confidence)</h4>
+          </div>
+          <div className="rounded-md border bg-white overflow-hidden">
+            <div className="overflow-x-auto">
+              <Table className="table-fixed w-full min-w-[600px]">
+                <TableHeader className="bg-slate-50/50">
+                  <TableRow>
+                    <TableHead className="w-[20%] pl-6">Product</TableHead>
+                    <TableHead className="w-[25%]">Issue</TableHead>
+                    <TableHead className="w-[40%]">Action Required</TableHead>
+                    <TableHead className="w-[15%] text-right pr-6">Confidence</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {lowConfidence.slice(0, 5).map((product) => (
+                    <TableRow key={product.product_id}>
+                      <TableCell className="pl-6 font-medium truncate">{product.product_id}</TableCell>
+                      <TableCell>
+                        {product.guardrail_triggered ? (
+                          <Badge variant="destructive" className="whitespace-nowrap">Price Guardrail</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50 whitespace-nowrap">
+                            Volatile History
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-slate-600 truncate" title={product.recommendation}>
+                         {product.recommendation}
+                      </TableCell>
+                      <TableCell className="text-right pr-6 font-mono">
+                        {(product.confidence * 100).toFixed(1)}%
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
         </div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Product ID</TableHead>
-              <TableHead className="text-right">Predicted Demand</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {topPerformers.map((metric) => (
-              <TableRow key={metric.product_id}>
-                <TableCell className="font-medium">{metric.product_id}</TableCell>
-                <TableCell className="text-right success-text font-semibold">
-                  {metric.predicted_demand.toLocaleString()}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
+      )}
 
-      <Card className="p-6 border-border shadow-sm">
-        <h2 className="text-lg font-semibold mb-4">Critical Attention Required</h2>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Product ID</TableHead>
-              <TableHead>Demand</TableHead>
-              <TableHead>Action</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {bottomPerformers.map((metric) => (
-              <TableRow key={metric.product_id}>
-                <TableCell className="font-medium">{metric.product_id}</TableCell>
-                <TableCell className="text-destructive font-semibold">
-                  {metric.predicted_demand.toLocaleString()}
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground">
-                  {metric.recommendation.split(':')[1]?.trim() || 'Review pricing'}
-                </TableCell>
+      {/* High Impact Table */}
+      <div className="space-y-3">
+         <div className="flex items-center gap-2 text-emerald-600 px-6">
+            <TrendingUp className="h-5 w-5" />
+            <h4 className="font-medium">High Impact Opportunities</h4>
+        </div>
+        <div className="overflow-x-auto">
+          <Table className="table-fixed w-full min-w-[600px]">
+            <TableHeader className="bg-slate-50/50">
+              <TableRow>
+                <TableHead className="w-[25%] pl-6">Product</TableHead>
+                <TableHead className="w-[25%]">Projected Demand</TableHead>
+                <TableHead className="w-[25%]">Primary Driver</TableHead>
+                <TableHead className="w-[25%] text-right pr-6">Strategy</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
+            </TableHeader>
+            <TableBody>
+              {highImpact.slice(0, 5).map((product) => (
+                <TableRow key={product.product_id}>
+                  <TableCell className="pl-6 font-medium flex items-center gap-2 truncate">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+                    {product.product_id}
+                  </TableCell>
+                  <TableCell className="font-bold text-slate-700 truncate">
+                    {product.predicted_demand.toLocaleString()} units
+                  </TableCell>
+                  <TableCell>
+                    {product.drivers[0] ? (
+                       <Badge variant="secondary" className="bg-slate-100 text-slate-700 truncate max-w-full">
+                         {product.drivers[0]}
+                       </Badge>
+                    ) : (
+                       <span className="text-muted-foreground text-sm">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right pr-6 text-emerald-700 font-medium truncate">
+                    Run Promotion
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
     </div>
   );
 };

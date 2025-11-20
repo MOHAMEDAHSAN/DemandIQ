@@ -388,7 +388,7 @@ class ProductLevelTrainer:
 
 if __name__ == "__main__":
     # Configuration
-    DATA_PATH = "retail_store_inventory.csv"
+    DATA_PATH = "backend/retail_store_inventory.csv"
     OUTPUT_DIR = "backend/models"
     
     # Initialize and run trainer

@@ -92,7 +92,8 @@ export const ProductDeepDive = ({
             </SelectTrigger>
             <SelectContent>
               {products.map(p => (
-                <SelectItem key={p} value={p}>{p}</SelectItem>
+                // FIX: Ensure key and value are valid strings to prevent warnings
+                <SelectItem key={p || 'unknown'} value={p || 'unknown'}>{p || 'Unknown Product'}</SelectItem>
               ))}
             </SelectContent>
           </Select>

@@ -42,7 +42,24 @@ export interface ForecastDataPoint {
   forecast?: number;
 }
 
+// NEW: Define what a "Save Point" looks like
+export interface DashboardSnapshot {
+  state: DashboardState;
+  data: InventoryRecord[];
+  dataSummary: DataSummary | null;
+  productMetrics: ProductMetrics[];
+  forecastHorizon: number;
+  selectedScenario: ScenarioType;
+}
+
+export interface HistoryItem {
+  id: string;
+  action: string;
+  details: string;
+  timestamp: string;
+  status: 'success' | 'error' | 'info';
+  snapshot?: DashboardSnapshot; // Optional snapshot of data
+}
+
 export type DashboardState = "idle" | "loading" | "training" | "trained" | "forecasting" | "results";
 export type ScenarioType = "baseline" | "discount" | "price_cut" | "holiday";
-// src/types/inventory.ts
-// Add "loading" to the union type
